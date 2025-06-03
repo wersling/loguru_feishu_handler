@@ -89,7 +89,10 @@ class LoguruFeishuSink:
         level = record["level"].name
         message = record["message"]
         
-        content = f"🕐 {time_str}\n📊 {level}\n📝 {message}"
+        # 构建第一行，加粗显示
+        first_line = f"{self.keyword} | {level} | {message}" if self.keyword else f"{level} | {message}"
+        
+        content = f"{first_line}\n🕐 时间: {time_str}"
         
         # 添加异常信息
         if record["exception"]:
@@ -107,11 +110,13 @@ class LoguruFeishuSink:
         file_info = f"{record['file'].path}:{record['line']}"
         function = record["function"]
         
-        content = f"""🕐 时间: {time_str}
-📊 级别: {level}
+        # 构建第一行，加粗显示
+        first_line = f"{self.keyword} | {level} | {message}" if self.keyword else f"{level} | {message}"
+        
+        content = f"""{first_line}
+🕐 时间: {time_str}
 📁 文件: {file_info}
-🔧 函数: {function}
-📝 消息: {message}"""
+🔧 函数: {function}"""
         
         # 添加额外字段（过滤掉不需要的）
         extra_info = []
@@ -136,10 +141,6 @@ class LoguruFeishuSink:
     
     def _build_feishu_message(self, content: str) -> Dict[str, Any]:
         """构造飞书消息格式"""
-        # 添加关键词
-        if self.keyword:
-            content = f"{self.keyword}\n{content}"
-            
         return {
             "msg_type": "text",
             "content": {
