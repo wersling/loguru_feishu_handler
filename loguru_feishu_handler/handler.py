@@ -58,20 +58,21 @@ class LoguruFeishuSink:
     def _send_message(self, message):
         """发送消息到飞书"""
         # 格式化消息内容
-        content = self._format_message(message)
+        content_elements = self._format_message(message)
         
         # 检查缓存
-        if self.cache_time > 0 and self._should_skip_by_cache(content):
+        content_str = str(content_elements)
+        if self.cache_time > 0 and self._should_skip_by_cache(content_str):
             return
             
         # 构造飞书消息格式
-        feishu_message = self._build_feishu_message(content)
+        feishu_message = self._build_feishu_message(content_elements)
         
         # 发送消息
         self._send_to_feishu(feishu_message)
     
-    def _format_message(self, message) -> str:
-        """格式化日志消息"""
+    def _format_message(self, message) -> List[List[Dict[str, Any]]]:
+        """格式化日志消息为富文本格式"""
         record = message.record
         
         # 获取日志级别数值
@@ -83,40 +84,67 @@ class LoguruFeishuSink:
         else:
             return self._format_detailed_message(record)
     
-    def _format_simple_message(self, record) -> str:
-        """简化格式消息"""
+    def _format_simple_message(self, record) -> List[List[Dict[str, Any]]]:
+        """简化格式消息 - 富文本格式"""
         time_str = record["time"].strftime("%Y-%m-%d %H:%M:%S")
         level = record["level"].name
         message = record["message"]
         
-        # 构建第一行，加粗显示
-        first_line = f"{self.keyword} | {level} | {message}" if self.keyword else f"{level} | {message}"
+        # 构建第一行，使用基础文本
+        first_line_elements = []
         
-        content = f"{first_line}\n🕐 时间: {time_str}"
+        # 添加关键词（如果有）
+        if self.keyword:
+            first_line_elements.extend([
+                {"tag": "text", "text": f"{self.keyword} | {level} | {message}"}
+            ])
+        else:
+            first_line_elements.extend([
+                {"tag": "text", "text": f"{level} | {message}"}
+            ])
+        
+        # 构建富文本内容
+        content_elements = [
+            first_line_elements,  # 第一行：标题行
+            [{"tag": "text", "text": f"🕐 时间: {time_str}"}]  # 时间行
+        ]
         
         # 添加异常信息
         if record["exception"]:
             exc_info = record["exception"]
-            content += f"\n❌ 异常类型: {exc_info.type.__name__}"
-            content += f"\n💬 异常信息: {exc_info.value}"
+            content_elements.append([{"tag": "text", "text": f"❌ 异常类型: {exc_info.type.__name__}"}])
+            content_elements.append([{"tag": "text", "text": f"💬 异常信息: {exc_info.value}"}])
         
-        return content
+        return content_elements
     
-    def _format_detailed_message(self, record) -> str:
-        """详细格式消息"""
+    def _format_detailed_message(self, record) -> List[List[Dict[str, Any]]]:
+        """详细格式消息 - 富文本格式"""
         time_str = record["time"].strftime("%Y-%m-%d %H:%M:%S")
         level = record["level"].name
         message = record["message"]
         file_info = f"{record['file'].path}:{record['line']}"
         function = record["function"]
         
-        # 构建第一行，加粗显示
-        first_line = f"{self.keyword} | {level} | {message}" if self.keyword else f"{level} | {message}"
+        # 构建第一行，使用基础文本
+        first_line_elements = []
         
-        content = f"""{first_line}
-🕐 时间: {time_str}
-📁 文件: {file_info}
-🔧 函数: {function}"""
+        # 添加关键词（如果有）
+        if self.keyword:
+            first_line_elements.extend([
+                {"tag": "text", "text": f"{self.keyword} | {level} | {message}"}
+            ])
+        else:
+            first_line_elements.extend([
+                {"tag": "text", "text": f"{level} | {message}"}
+            ])
+        
+        # 构建富文本内容
+        content_elements = [
+            first_line_elements,  # 第一行：标题行
+            [{"tag": "text", "text": f"🕐 时间: {time_str}"}],  # 时间行
+            [{"tag": "text", "text": f"📁 文件: {file_info}"}],  # 文件信息
+            [{"tag": "text", "text": f"🔧 函数: {function}"}]  # 函数信息
+        ]
         
         # 添加额外字段（过滤掉不需要的）
         extra_info = []
@@ -125,26 +153,35 @@ class LoguruFeishuSink:
                 extra_info.append(f"{key}: {value}")
         
         if extra_info:
-            content += f"\n📋 额外信息:\n" + "\n".join(extra_info)
+            content_elements.append([{"tag": "text", "text": "📋 额外信息:"}])
+            for info in extra_info:
+                content_elements.append([{"tag": "text", "text": info}])
         
         # 添加异常信息
         if record["exception"]:
             exc_info = record["exception"]
-            content += f"\n❌ 异常类型: {exc_info.type.__name__}"
-            content += f"\n💬 异常信息: {exc_info.value}"
+            content_elements.append([{"tag": "text", "text": f"❌ 异常类型: {exc_info.type.__name__}"}])
+            content_elements.append([{"tag": "text", "text": f"💬 异常信息: {exc_info.value}"}])
+            
             if exc_info.traceback:
                 # 截取部分堆栈信息，避免消息过长
                 traceback_lines = str(exc_info.traceback).split('\n')[:10]
-                content += f"\n🔍 堆栈信息:\n```\n" + "\n".join(traceback_lines) + "\n```"
+                content_elements.append([{"tag": "text", "text": "🔍 堆栈信息:"}])
+                content_elements.append([{"tag": "text", "text": "\n".join(traceback_lines)}])
         
-        return content
+        return content_elements
     
-    def _build_feishu_message(self, content: str) -> Dict[str, Any]:
-        """构造飞书消息格式"""
+    def _build_feishu_message(self, content_elements: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
+        """构造飞书富文本消息格式"""
         return {
-            "msg_type": "text",
+            "msg_type": "post",
             "content": {
-                "text": content
+                "post": {
+                    "zh_cn": {
+                        "title": "日志消息",
+                        "content": content_elements
+                    }
+                }
             }
         }
     
@@ -176,6 +213,25 @@ class LoguruFeishuSink:
     
     def _send_to_feishu(self, message: Dict[str, Any]):
         """发送消息到飞书"""
+        # print(f"发送消息到飞书: {message}")
+        message = {
+            "msg_type": "post",
+            "content": {
+                "post": {
+                    "zh_cn": {
+                        "title": "日志消息",
+                        "content": message
+                    }
+                }
+            }
+        }
+        message = {
+            "msg_type": "text",
+            "content": {
+                "text": "asdads"
+            }
+        }
+        print(f"发送消息到飞书: {message}")
         def _send():
             try:
                 response = requests.post(

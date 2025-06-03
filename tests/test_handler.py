@@ -58,9 +58,17 @@ class TestLoguruFeishuSink(unittest.TestCase):
         
         result = sink._format_simple_message(mock_record)
         
-        # 检查新格式
-        self.assertIn("**告警 | INFO | 测试消息**", result)
-        self.assertIn("🕐 时间: 2024-01-15 10:30:25", result)
+        # 检查富文本格式结构
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        
+        # 检查第一行包含关键词和消息（加粗格式）
+        first_line = result[0]
+        self.assertIsInstance(first_line, list)
+        
+        # 查找包含关键词的元素
+        first_line_text = "".join(elem.get("text", "") for elem in first_line)
+        self.assertIn("告警 | INFO | 测试消息", first_line_text)
     
     def test_format_simple_message_no_keyword(self):
         """测试无关键词的简化格式消息"""
@@ -87,9 +95,14 @@ class TestLoguruFeishuSink(unittest.TestCase):
         
         result = sink._format_simple_message(mock_record)
         
-        # 检查无关键词格式
-        self.assertIn("**INFO | 测试消息**", result)
-        self.assertNotIn("告警", result)
+        # 检查富文本格式结构
+        self.assertIsInstance(result, list)
+        
+        # 检查第一行不包含关键词
+        first_line = result[0]
+        first_line_text = "".join(elem.get("text", "") for elem in first_line)
+        self.assertNotIn("告警", first_line_text)
+        self.assertIn("INFO | 测试消息", first_line_text)
     
     def test_format_detailed_message(self):
         """测试详细格式消息"""
@@ -116,11 +129,14 @@ class TestLoguruFeishuSink(unittest.TestCase):
         
         result = sink._format_detailed_message(mock_record)
         
-        # 检查新格式
-        self.assertIn("**错误 | ERROR | 错误消息**", result)
-        self.assertIn("🕐 时间: 2024-01-15 10:30:25", result)
-        self.assertIn("📁 文件: /test/file.py:25", result)
-        self.assertIn("🔧 函数: error_func", result)
+        # 检查富文本格式结构
+        self.assertIsInstance(result, list)
+        self.assertGreaterEqual(len(result), 4)  # 至少有标题、时间、文件、函数四行
+        
+        # 检查第一行包含关键词和消息
+        first_line = result[0]
+        first_line_text = "".join(elem.get("text", "") for elem in first_line)
+        self.assertIn("错误 | ERROR | 错误消息", first_line_text)
     
     def test_format_detailed_message_no_keyword(self):
         """测试无关键词的详细格式消息"""
@@ -147,9 +163,11 @@ class TestLoguruFeishuSink(unittest.TestCase):
         
         result = sink._format_detailed_message(mock_record)
         
-        # 检查无关键词格式
-        self.assertIn("**ERROR | 错误消息**", result)
-        self.assertNotIn("错误 |", result)  # 确保不包含关键词
+        # 检查第一行不包含关键词
+        first_line = result[0]
+        first_line_text = "".join(elem.get("text", "") for elem in first_line)
+        self.assertNotIn("错误 |", first_line_text)  # 确保不包含关键词
+        self.assertIn("ERROR | 错误消息", first_line_text)
     
     def test_cache_mechanism(self):
         """测试缓存机制"""
@@ -177,13 +195,25 @@ class TestLoguruFeishuSink(unittest.TestCase):
         """测试构造飞书消息格式"""
         sink = LoguruFeishuSink(self.webhook_url, keyword="告警")
         
-        content = "**告警 | ERROR | 测试内容**\n🕐 时间: 2024-01-15 10:30:25"
-        message = sink._build_feishu_message(content)
+        # 构造富文本内容元素
+        content_elements = [
+            [
+                {"tag": "text", "text": "告警 | ERROR | 测试内容"}
+            ],
+            [{"tag": "text", "text": "🕐 时间: 2024-01-15 10:30:25"}]
+        ]
+        
+        message = sink._build_feishu_message(content_elements)
         
         expected = {
-            "msg_type": "text",
+            "msg_type": "post",
             "content": {
-                "text": content
+                "post": {
+                    "zh_cn": {
+                        "title": "日志消息",
+                        "content": content_elements
+                    }
+                }
             }
         }
         
@@ -193,13 +223,23 @@ class TestLoguruFeishuSink(unittest.TestCase):
         """测试无关键词的飞书消息格式"""
         sink = LoguruFeishuSink(self.webhook_url)
         
-        content = "**ERROR | 测试内容**\n🕐 时间: 2024-01-15 10:30:25"
-        message = sink._build_feishu_message(content)
+        # 构造富文本内容元素
+        content_elements = [
+            [{"tag": "text", "text": "ERROR | 测试内容"}],
+            [{"tag": "text", "text": "🕐 时间: 2024-01-15 10:30:25"}]
+        ]
+        
+        message = sink._build_feishu_message(content_elements)
         
         expected = {
-            "msg_type": "text",
+            "msg_type": "post",
             "content": {
-                "text": content
+                "post": {
+                    "zh_cn": {
+                        "title": "日志消息",
+                        "content": content_elements
+                    }
+                }
             }
         }
         
@@ -211,7 +251,18 @@ class TestLoguruFeishuSink(unittest.TestCase):
         mock_post.return_value.raise_for_status.return_value = None
         
         sink = LoguruFeishuSink(self.webhook_url)
-        message = {"msg_type": "text", "content": {"text": "测试"}}
+        
+        message = {
+            "msg_type": "post",
+            "content": {
+                "post": {
+                    "zh_cn": {
+                        "title": "日志消息",
+                        "content": [[{"tag": "text", "text": "测试"}]]
+                    }
+                }
+            }
+        }
         
         sink._send_to_feishu(message)
         
