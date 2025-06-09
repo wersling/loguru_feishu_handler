@@ -34,14 +34,14 @@ pip install loguru-feishu-handler
 from loguru import logger
 from loguru_feishu_handler import add_feishu_sink
 
-# 添加飞书 sink
+# 添加飞书 sink（默认只发送 WARNING 级别以上的日志）
 sink_id = add_feishu_sink(
     webhook_url="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx",
-    keyword="系统告警",  # 飞书机器人关键词
-    level="ERROR"       # 只发送 ERROR 级别以上的日志
+    keyword="系统告警"  # 飞书机器人关键词
 )
 
 # 发送日志
+logger.warning("这是一条警告日志")
 logger.error("这是一条错误日志")
 logger.critical("系统发生严重错误！")
 
@@ -64,7 +64,7 @@ sink = LoguruFeishuSink(
     keyword="系统监控",
     cache_time=300,  # 5分钟内相同消息不重复发送
     filter_keys=["process", "thread"],  # 过滤掉进程和线程信息
-    simple_log_levelno=20,  # INFO级别以下使用简化格式
+    simple_log_levelno=30,  # WARNING级别以下使用简化格式
     simple_format=True,     # 启用简化格式
     timeout=15             # 请求超时时间
 )
@@ -73,8 +73,9 @@ sink = LoguruFeishuSink(
 sink_id = logger.add(sink, level="INFO")
 
 # 使用示例
-logger.info("这是一条信息日志")  # 简化格式
-logger.error("这是一条错误日志")  # 详细格式
+logger.info("这是一条信息日志")     # 简化格式
+logger.warning("这是一条警告日志")   # 详细格式
+logger.error("这是一条错误日志")     # 详细格式
 ```
 
 ### 4. 消息格式示例
@@ -156,6 +157,13 @@ ValueError: 无效的数据格式
 6. **兼容性**: 富文本格式兼容飞书移动端和桌面端
 
 ## 更新日志
+
+### v2.0.0
+🎨 重大更新: 改用飞书富文本格式，显示效果更佳
+📝 标题优化: 完整日志信息作为消息标题显示
+🎯 默认级别: 默认日志级别调整为 WARNING，减少噪音
+🌈 颜色支持: 不同日志级别使用不同颜色标识
+🏗️ 结构优化: 消息内容结构化显示，可读性更强
 
 ### v1.1.0
 - 升级为飞书富文本格式（post 类型）

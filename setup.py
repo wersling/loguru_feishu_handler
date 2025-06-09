@@ -5,13 +5,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="loguru-feishu-handler",
-    version="1.0.0",
+    version="2.0.3",
     author="seanzou",
-    author_email="seanzou@example.com",
+    author_email="wersling@gmail.com",
     description="Loguru 飞书消息推送 Handler",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/seanzou/loguru-feishu-handler",
+    url="https://github.com/wersling/loguru_feishu_handler",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -34,7 +34,7 @@ setup(
     ],
     keywords="loguru feishu logging handler webhook",
     project_urls={
-        "Bug Reports": "https://github.com/seanzou/loguru-feishu-handler/issues",
-        "Source": "https://github.com/seanzou/loguru-feishu-handler",
+        "Bug Reports": "https://github.com/wersling/loguru_feishu_handler/issues",
+        "Source": "https://github.com/wersling/loguru_feishu_handler",
     },
 ) 
