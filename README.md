@@ -179,5 +179,4 @@ ValueError: 无效的数据格式
 - 支持字段过滤
 
 ## 许可证
-
-Apache License 2.0 
+MIT License
